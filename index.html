@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>✨ Touch Firework</title>
+    <title>Touch Firework</title>
     <style>
         * {
             margin: 0;
@@ -15,7 +15,7 @@
             width: 100vw;
             height: 100vh;
             overflow: hidden;
-            background: linear-gradient(to bottom, #0a0a1a, #1a0a2a);
+            background: #000;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
@@ -28,318 +28,264 @@
         
         .info {
             position: absolute;
-            bottom: 30px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: rgba(255, 255, 255, 0.8);
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: rgba(255, 255, 255, 0.5);
+            font-family: Arial, sans-serif;
             font-size: 14px;
-            font-weight: 300;
             pointer-events: none;
             text-align: center;
-            letter-spacing: 1px;
-        }
-
-        .hint {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: rgba(255, 255, 255, 0.4);
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            font-size: 12px;
-            pointer-events: none;
         }
     </style>
 </head>
 <body>
     <canvas id="fireworkCanvas"></canvas>
-    <div class="hint">✨ Double tap for multicolor burst</div>
-    <div class="info">Tap anywhere for fireworks</div>
+    <div class="info">Tap/Click anywhere for firework</div>
     
     <script>
-        // ===== CONFIG =====
+        // ============================================
+        // CONFIGURATION - Performance optimized!
+        // ============================================
         const CONFIG = {
-            particleCount: 120,
-            gravity: 0.08,
-            friction: 0.96,
-            baseSpeed: 8,
-            fadeSpeed: 0.012,
-            trailOpacity: 0.15,
-            rocketSpeed: -6,
-            minParticles: 50
+            particleCount: 35,       // Reduced from 120!
+            gravity: 0.1,
+            friction: 0.97,
+            baseSpeed: 6,
+            fadeSpeed: 0.015,
+            trailOpacity: 0.2,
+            rocketSpeed: -7,
+            maxFireworks: 8,         // Limit concurrent fireworks
+            autoFirework: true,
+            autoInterval: 5000       // Every 5 seconds
         };
 
-        // ===== UTILS =====
+        // ============================================
+        // SETUP
+        // ============================================
+        const canvas = document.getElementById('fireworkCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        // ============================================
+        // HELPER FUNCTIONS
+        // ============================================
         const random = (min, max) => Math.random() * (max - min) + min;
         const randomInt = (min, max) => Math.floor(random(min, max));
         const randomColor = () => randomInt(0, 360);
-
-        // ===== PARTICLE CLASS =====
+        const degreesToRadians = (degrees) => degrees * (Math.PI / 180);
+        
+        // ============================================
+        // PARTICLE CLASS - Lightweight version
+        // ============================================
         class Particle {
-            constructor(x, y, hue, options = {}) {
+            constructor(x, y, hue) {
                 this.x = x;
                 this.y = y;
                 this.hue = hue;
-                this.brightness = random(60, 90);
+                this.brightness = random(50, 90);
                 this.alpha = 1;
-                this.decay = options.decay || random(CONFIG.fadeSpeed * 0.8, CONFIG.fadeSpeed * 1.5);
+                this.decay = random(0.01, CONFIG.fadeSpeed);
                 
-                const angle = random(0, Math.PI * 2);
-                const speed = random(2, CONFIG.baseSpeed);
+                const angle = random(0, 360);
+                const velocity = random(1, CONFIG.baseSpeed);
                 
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-                this.size = random(1.5, 3.5);
+                this.velocity = {
+                    x: Math.cos(degreesToRadians(angle)) * velocity,
+                    y: Math.sin(degreesToRadians(angle)) * velocity
+                };
                 
-                this.gravity = options.gravity ?? CONFIG.gravity;
-                this.friction = options.friction ?? CONFIG.friction;
+                this.gravity = CONFIG.gravity;
+                this.friction = CONFIG.friction;
+                this.size = random(1.5, 2.5);
             }
-
+            
             update() {
-                this.vx *= this.friction;
-                this.vy *= this.friction;
-                this.vy += this.gravity;
-                
-                this.x += this.vx;
-                this.y += this.vy;
+                this.velocity.x *= this.friction;
+                this.velocity.y *= this.friction;
+                this.velocity.y += this.gravity;
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
                 this.alpha -= this.decay;
-                
-                // Sparkle effect
-                this.size *= 0.98;
             }
-
-            draw(ctx) {
-                if (this.alpha <= 0 || this.size <= 0.1) return;
-                
-                ctx.save();
+            
+            draw() {
                 ctx.globalAlpha = this.alpha;
                 ctx.fillStyle = `hsl(${this.hue}, 100%, ${this.brightness}%)`;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = `hsl(${this.hue}, 100%, 60%)`;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.restore();
-            }
-
-            isDead() {
-                return this.alpha <= 0 || this.size <= 0.1;
             }
         }
 
-        // ===== ROCKET CLASS =====
+        // ============================================
+        // ROCKET CLASS - Simplified
+        // ============================================
         class Rocket {
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
-                this.targetY = y - random(150, 300);
+                this.targetY = y - random(150, 250);
                 this.hue = randomColor();
-                this.velocity = CONFIG.rocketSpeed;
+                this.velocity = random(CONFIG.rocketSpeed - 1.5, CONFIG.rocketSpeed);
                 this.exploded = false;
                 this.particles = [];
-                this.trail = [];
+                this.trailPos = [];
             }
-
+            
             update() {
                 this.y += this.velocity;
-                this.velocity += 0.15;
+                this.velocity += 0.2;
                 
-                // Add trail particle
-                if (Math.random() > 0.3) {
-                    this.trail.push({
-                        x: this.x,
-                        y: this.y,
-                        alpha: 0.6,
-                        size: random(1, 2)
-                    });
+                // Simplified trail - just positions
+                if (!this.exploded && Math.random() > 0.6) {
+                    this.trailPos.push({ x: this.x, y: this.y, alpha: 0.6 });
                 }
-
+                
+                // Update trail
+                for (let i = this.trailPos.length - 1; i >= 0; i--) {
+                    this.trailPos[i].alpha -= 0.05;
+                    if (this.trailPos[i].alpha <= 0) {
+                        this.trailPos.splice(i, 1);
+                    }
+                }
+                
                 if (this.velocity >= -0.5) {
+                    this.exploded = true;
                     this.explode();
                 }
             }
-
+            
             explode() {
-                this.exploded = true;
-                
-                // Main burst
                 for (let i = 0; i < CONFIG.particleCount; i++) {
                     this.particles.push(new Particle(this.x, this.y, this.hue));
                 }
-                
-                // Secondary sparkles with different hues
-                const secondaryHues = [
-                    (this.hue + 30) % 360,
-                    (this.hue + 60) % 360,
-                    (this.hue - 30 + 360) % 360
-                ];
-                
-                secondaryHues.forEach(hue => {
-                    for (let i = 0; i < 30; i++) {
-                        const particle = new Particle(this.x, this.y, hue, {
-                            decay: random(0.02, 0.035),
-                            gravity: 0.06,
-                            friction: 0.94
-                        });
-                        particle.size = random(0.8, 1.8);
-                        this.particles.push(particle);
-                    }
-                });
             }
-
-            draw(ctx) {
-                // Draw trail
-                this.trail.forEach((t, i) => {
-                    t.alpha -= 0.08;
-                    t.size *= 0.9;
-                    
-                    if (t.alpha > 0) {
-                        ctx.save();
-                        ctx.globalAlpha = t.alpha;
-                        ctx.fillStyle = `hsl(${this.hue}, 100%, 70%)`;
-                        ctx.beginPath();
-                        ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.restore();
-                    }
-                });
-
-                if (!this.exploded) {
-                    ctx.save();
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = `hsl(${this.hue}, 100%, 60%)`;
-                    ctx.fillStyle = `hsl(${this.hue}, 100%, 75%)`;
+            
+            draw() {
+                // Draw simple trail
+                this.trailPos.forEach(t => {
+                    ctx.globalAlpha = t.alpha * 0.5;
+                    ctx.fillStyle = `hsl(${this.hue}, 100%, 70%)`;
                     ctx.beginPath();
-                    ctx.arc(this.x, this.y, 4, 0, Math.PI * 2);
+                    ctx.arc(t.x, t.y, 1.5, 0, Math.PI * 2);
                     ctx.fill();
-                    ctx.restore();
+                });
+                
+                // Draw rocket
+                if (!this.exploded) {
+                    ctx.globalAlpha = 0.9;
+                    ctx.fillStyle = `hsl(${this.hue}, 100%, 80%)`;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
                 }
-            }
-
-            isDead() {
-                return this.exploded && this.particles.length === 0;
             }
         }
 
-        // ===== FIREWORK MANAGER =====
+        // ============================================
+        // FIREWORK MANAGER - With limits
+        // ============================================
         class FireworkManager {
-            constructor(canvas) {
-                this.canvas = canvas;
-                this.ctx = canvas.getContext('2d');
+            constructor() {
                 this.fireworks = [];
-                this.resize();
-                this.initEvents();
+                this.initAutoFirework();
             }
-
-            resize() {
-                this.width = window.innerWidth;
-                this.height = window.innerHeight;
-                this.canvas.width = this.width;
-                this.canvas.height = this.height;
+            
+            createFirework(x, y) {
+                // Limit concurrent fireworks for performance
+                if (this.fireworks.length >= CONFIG.maxFireworks) {
+                    // Remove oldest
+                    this.fireworks.shift();
+                }
+                this.fireworks.push(new Rocket(x, y));
             }
-
-            initEvents() {
-                this.canvas.addEventListener('click', (e) => {
-                    this.createFirework(e.clientX, e.clientY);
-                });
-                
-                this.canvas.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    const touch = e.touches[0];
-                    this.createFirework(touch.clientX, touch.clientY);
-                }, { passive: false });
-                
-                window.addEventListener('resize', () => this.resize());
+            
+            createRandomFirework() {
+                const x = random(80, width - 80);
+                const y = random(80, height * 0.5);
+                this.createFirework(x, y);
             }
-
-            createFirework(x, y, count = 1) {
-                for (let i = 0; i < count; i++) {
-                    setTimeout(() => {
-                        const offsetX = (Math.random() - 0.5) * 30;
-                        const offsetY = (Math.random() - 0.5) * 30;
-                        this.fireworks.push(new Rocket(x + offsetX, y + offsetY));
-                    }, i * 80);
+            
+            initAutoFirework() {
+                if (CONFIG.autoFirework) {
+                    setInterval(() => {
+                        this.createRandomFirework();
+                    }, CONFIG.autoInterval);
                 }
             }
-
+            
             update() {
-                // Fade effect
-                this.ctx.fillStyle = `rgba(0, 0, 0, ${CONFIG.trailOpacity})`;
-                this.ctx.fillRect(0, 0, this.width, this.height);
+                // Clear canvas
+                ctx.fillStyle = `rgba(0, 0, 0, ${CONFIG.trailOpacity})`;
+                ctx.fillRect(0, 0, width, height);
                 
-                // Update and draw fireworks
                 for (let i = this.fireworks.length - 1; i >= 0; i--) {
                     const firework = this.fireworks[i];
                     firework.update();
-                    firework.draw(this.ctx);
+                    firework.draw();
                     
-                    // Update particles
                     if (firework.exploded) {
                         for (let j = firework.particles.length - 1; j >= 0; j--) {
                             const particle = firework.particles[j];
                             particle.update();
-                            particle.draw(this.ctx);
+                            particle.draw();
                             
-                            if (particle.isDead()) {
+                            if (particle.alpha <= 0) {
                                 firework.particles.splice(j, 1);
                             }
                         }
+                        
+                        // Clean up empty fireworks
+                        if (firework.particles.length === 0) {
+                            this.fireworks.splice(i, 1);
+                        }
                     }
-                    
-                    if (firework.isDead()) {
-                        this.fireworks.splice(i, 1);
-                    }
-                }
-            }
-
-            animate() {
-                this.update();
-                requestAnimationFrame(() => this.animate());
-            }
-
-            start() {
-                this.animate();
-            }
-        }
-
-        // ===== AUTO-FIREWORK =====
-        class AutoFirework {
-            constructor(manager) {
-                this.manager = manager;
-                this.enabled = true;
-                this.interval = null;
-            }
-
-            start(interval = 3000) {
-                this.stop();
-                this.interval = setInterval(() => {
-                    const x = random(100, this.manager.width - 100);
-                    const y = this.manager.height * random(0.5, 0.7);
-                    this.manager.createFirework(x, y);
-                }, interval);
-            }
-
-            stop() {
-                if (this.interval) {
-                    clearInterval(this.interval);
-                    this.interval = null;
                 }
             }
         }
 
-        // ===== INITIALIZATION =====
-        const canvas = document.getElementById('fireworkCanvas');
-        const manager = new FireworkManager(canvas);
-        const autoFire = new AutoFirework(manager);
-        
-        // Start auto fireworks (optional - comment out if not wanted)
-        autoFire.start(4000);
-        
-        manager.start();
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        const fireworkManager = new FireworkManager();
 
-        // Export for debugging
-        window.fireworkManager = manager;
+        canvas.addEventListener('click', (e) => {
+            fireworkManager.createFirework(e.clientX, e.clientY);
+        });
+        
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            fireworkManager.createFirework(touch.clientX, touch.clientY);
+        }, { passive: false });
+        
+        window.addEventListener('resize', () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        });
+
+        // ============================================
+        // ANIMATION LOOP
+        // ============================================
+        function animate() {
+            fireworkManager.update();
+            requestAnimationFrame(animate);
+        }
+
+        // Start
+        animate();
+
+        // Initial firework
+        setTimeout(() => {
+            fireworkManager.createRandomFirework();
+        }, 1000);
     </script>
 </body>
 </html>
